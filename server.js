@@ -17,8 +17,8 @@ mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.log('MongoDB Error:', err));
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.log('MongoDB Error:', err));
 
 // Routes
 app.use('/api/projects', require('./routes/projects'));
@@ -26,8 +26,8 @@ app.use('/api/contact', require('./routes/contact'));
 
 app.get('/', (req, res) => {
   res.send({
-    activeStatus:true,
-    error:false,
+    activeStatus: true,
+    error: false,
   })
 }
 );
