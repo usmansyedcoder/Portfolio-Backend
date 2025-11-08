@@ -24,6 +24,13 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/contact', require('./routes/contact'));
 
+app.get('/', (req, res) => {
+  res.send({
+    activeStatus:true,
+    error:false,
+  })
+}
+);
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'Server is running' });
