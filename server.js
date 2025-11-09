@@ -7,34 +7,39 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
+// ===== Middleware =====
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.log('MongoDB Error:', err));
+// ===== MongoDB Connection =====
+// (clean, no deprecated options)
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.error('❌ MongoDB Error:', err));
 
-// Routes
+// ===== Routes =====
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/contact', require('./routes/contact'));
 
+// ===== Root route =====
 app.get('/', (req, res) => {
-  res.send({
+  res.json({
     activeStatus: true,
-    error: false,
-  })
-}
-);
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'Server is running' });
+    message: 'Portfolio Backend Active ✅',
+  });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// ===== Health check route =====
+app.get('/health', (req, res) => {
+  res.json({ status: 'Server is running ✅' });
+});
+
+// ===== Export app (for Vercel) =====
+module.exports = app;
+
+// ===== Local server (optional for local testing) =====
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server running locally on port ${PORT}`));
+}
