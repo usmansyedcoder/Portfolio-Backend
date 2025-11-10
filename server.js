@@ -7,17 +7,49 @@ dotenv.config();
 
 const app = express();
 
-// ===== Middleware =====
+// ===== CORS Configuration - FIXED =====
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'https://portfolio-frontend-kktyi5evp-muhammad-usmans-projects-be41f176.vercel.app',
+  process.env.CLIENT_URL,
+  /\.vercel\.app$/ // Allow all Vercel preview deployments
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in whitelist
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return allowedOrigin === origin;
+    });
+    
+    if (isAllowed) {
+      console.log('✅ CORS allowed for origin:', origin);
+      callback(null, true);
+    } else {
+      console.log('🚫 CORS blocked origin:', origin);
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// ===== Middleware =====
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ===== Request Logging Middleware =====
 app.use((req, res, next) => {
   console.log(`🌐 ${req.method} ${req.path} - ${new Date().toISOString()}`);
+  console.log(`📍 Origin: ${req.get('origin') || 'No origin header'}`);
   next();
 });
 
@@ -54,15 +86,17 @@ app.get('/', (req, res) => {
   res.json({
     activeStatus: true,
     message: 'Portfolio Backend Active ✅',
-    version: '2.0.0',
+    version: '2.0.1',
     features: [
       'Project Management',
       'Advanced Contact Forms',
       'Real-time Analytics',
-      'Admin Dashboard Ready'
+      'Admin Dashboard Ready',
+      'CORS Configured for Vercel'
     ],
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    allowedOrigins: allowedOrigins.map(o => o instanceof RegExp ? o.toString() : o)
   });
 });
 
@@ -137,6 +171,10 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`   GET  /api/status    - API status`);
     console.log(`   GET  /api/projects  - Get projects`);
     console.log(`   POST /api/contact   - Submit contact form`);
+    console.log(`\n🌐 Allowed Origins:`);
+    allowedOrigins.forEach(origin => {
+      console.log(`   - ${origin instanceof RegExp ? origin.toString() : origin}`);
+    });
     console.log(`\n⚡ Server ready!`);
   });
 }
