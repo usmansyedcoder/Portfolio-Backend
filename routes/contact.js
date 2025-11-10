@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Contact = require('../models/Contact');
+const sendEmail = require('../utils/sendEmail');
 
 // Utility function to get client IP
 const getClientIP = (req) => {
@@ -80,6 +81,128 @@ router.post('/', async (req, res) => {
     console.log('🌐 IP:', clientIP);
     console.log('🆔 Contact ID:', contact._id);
     console.log('⏰ Time:', new Date().toLocaleString());
+
+    // ✅ Send email notification
+    try {
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+              color: white;
+              padding: 30px;
+              border-radius: 10px 10px 0 0;
+              text-align: center;
+            }
+            .content {
+              background: #f9f9f9;
+              padding: 30px;
+              border: 1px solid #ddd;
+              border-radius: 0 0 10px 10px;
+            }
+            .info-row {
+              margin-bottom: 15px;
+              padding: 10px;
+              background: white;
+              border-left: 4px solid #00d4ff;
+              border-radius: 5px;
+            }
+            .label {
+              font-weight: bold;
+              color: #00a8cc;
+              display: inline-block;
+              width: 100px;
+            }
+            .value {
+              color: #333;
+            }
+            .message-box {
+              background: white;
+              padding: 20px;
+              border-radius: 5px;
+              margin-top: 20px;
+              white-space: pre-wrap;
+              border: 1px solid #ddd;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              color: #666;
+              font-size: 12px;
+            }
+            .metadata {
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              font-size: 12px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0;">🎉 New Contact Message!</h1>
+            <p style="margin: 10px 0 0 0;">Someone just contacted you through your portfolio</p>
+          </div>
+          <div class="content">
+            <div class="info-row">
+              <span class="label">👤 Name:</span>
+              <span class="value">${name}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">📧 Email:</span>
+              <span class="value"><a href="mailto:${email}">${email}</a></span>
+            </div>
+            <div class="info-row">
+              <span class="label">📝 Subject:</span>
+              <span class="value">${subject}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">⏰ Time:</span>
+              <span class="value">${new Date().toLocaleString()}</span>
+            </div>
+            
+            <h3 style="color: #00a8cc; margin-top: 30px;">💬 Message:</h3>
+            <div class="message-box">${message}</div>
+            
+            <div class="metadata">
+              <strong>📊 Contact Details:</strong><br>
+              🆔 ID: ${contact._id}<br>
+              🌐 IP Address: ${clientIP}<br>
+              🖥️ User Agent: ${userAgent}
+            </div>
+          </div>
+          <div class="footer">
+            <p>This email was sent from your portfolio contact form</p>
+            <p>Reply directly to this email to respond to ${name}</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await sendEmail({
+        subject: `📧 Portfolio Contact: ${subject}`,
+        html: emailHtml,
+        replyTo: email
+      });
+
+      console.log('✅ Email notification sent successfully');
+    } catch (emailError) {
+      console.error('⚠️ Email sending failed (contact saved to DB):', emailError.message);
+      // Don't fail the request if email fails - contact is already saved
+    }
 
     // ✅ Success response
     res.status(201).json({ 
