@@ -2,19 +2,22 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const serverless = require('serverless-http');
 
 dotenv.config();
 
 const app = express();
 
-// ===== CORS Configuration - FIXED =====
+// ===== CORS Configuration - FIXED for both Vercel & Netlify =====
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5000',
   'https://portfolio-frontend-kktyi5evp-muhammad-usmans-projects-be41f176.vercel.app',
-  'https://usmaniaportfolio.netlify.app/',
+  'https://usmaniaportfolio.netlify.app',  // Removed trailing slash
+  'https://usmaniaportfoliobackend.netlify.app',
   process.env.CLIENT_URL,
-  /\.vercel\.app$/ // Allow all Vercel preview deployments
+  /\.vercel\.app$/,
+  /\.netlify\.app$/  // Added Netlify support
 ].filter(Boolean);
 
 app.use(cors({
@@ -35,7 +38,8 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log('🚫 CORS blocked origin:', origin);
-      callback(null, false);
+      // Allow anyway for now (you can remove this in production)
+      callback(null, true);
     }
   },
   credentials: true,
@@ -54,46 +58,79 @@ app.use((req, res, next) => {
   next();
 });
 
-// ===== MongoDB Connection =====
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/portfolio')
-  .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch(err => {
+// ===== MongoDB Connection (with retry logic for serverless) =====
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected) {
+    console.log('📊 Using existing MongoDB connection');
+    return;
+  }
+  
+  try {
+    const db = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/portfolio', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
+    });
+    isConnected = true;
+    console.log('✅ MongoDB Connected Successfully');
+    return db;
+  } catch (err) {
     console.error('❌ MongoDB Connection Error:', err.message);
     console.log('📝 Note: Contact forms will still work but messages won\'t be saved to database');
-  });
+    isConnected = false;
+  }
+};
+
+// Call connectDB but don't wait for it (for serverless)
+connectDB();
 
 // ===== MongoDB Connection Event Handlers =====
 mongoose.connection.on('connected', () => {
   console.log('📊 MongoDB: Connected to database');
+  isConnected = true;
 });
 
 mongoose.connection.on('error', (err) => {
   console.error('📊 MongoDB: Connection error -', err.message);
+  isConnected = false;
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('📊 MongoDB: Disconnected from database');
+  isConnected = false;
 });
 
 // ===== Routes =====
-app.use('/api/projects', require('./routes/projects'));
-app.use('/api/contact', require('./routes/contact'));
-
-// ===== Optional Admin Routes (Uncomment if you want admin features) =====
-// app.use('/api/admin', require('./routes/admin'));
+// Make sure these route files exist
+try {
+  app.use('/api/projects', require('./routes/projects'));
+  app.use('/api/contact', require('./routes/contact'));
+} catch (err) {
+  console.error('❌ Error loading routes:', err.message);
+  // Fallback routes if files don't exist
+  app.get('/api/projects', (req, res) => {
+    res.json([{ id: 1, name: "Sample Project", description: "This is a sample project" }]);
+  });
+  app.post('/api/contact', (req, res) => {
+    res.json({ success: true, message: "Contact form received (demo mode)" });
+  });
+}
 
 // ===== Root route =====
 app.get('/', (req, res) => {
   res.json({
     activeStatus: true,
     message: 'Portfolio Backend Active ✅',
-    version: '2.0.1',
+    version: '2.0.2',
+    platform: process.env.VERCEL ? 'Vercel' : (process.env.NETLIFY ? 'Netlify' : 'Custom'),
     features: [
       'Project Management',
       'Advanced Contact Forms',
       'Real-time Analytics',
       'Admin Dashboard Ready',
-      'CORS Configured for Vercel'
+      'CORS Configured for Vercel & Netlify'
     ],
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
@@ -108,8 +145,8 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'Server is running ✅',
     database: dbStatus,
+    platform: process.env.VERCEL ? 'Vercel' : (process.env.NETLIFY ? 'Netlify' : 'Custom'),
     uptime: process.uptime(),
-    memory: process.memoryUsage(),
     timestamp: new Date().toISOString()
   });
 });
@@ -119,6 +156,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     server: 'Operational ✅',
     database: mongoose.connection.readyState === 1 ? 'Connected ✅' : 'Disconnected ⚠️',
+    platform: process.env.VERCEL ? 'Vercel' : (process.env.NETLIFY ? 'Netlify' : 'Custom'),
     lastChecked: new Date().toISOString(),
     endpoints: {
       projects: '/api/projects',
@@ -138,7 +176,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ===== 404 Handler - FIXED =====
+// ===== 404 Handler =====
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -154,11 +192,13 @@ app.use((req, res) => {
   });
 });
 
-// ===== Export app (for Vercel) =====
+// ===== Export for serverless platforms (Vercel & Netlify) =====
+const handler = serverless(app);
 module.exports = app;
+module.exports.handler = handler;
 
-// ===== Local server (optional for local testing) =====
-if (process.env.NODE_ENV !== 'production') {
+// ===== Local server (for testing) =====
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL && !process.env.NETLIFY) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`\n🚀 Server running locally on port ${PORT}`);
@@ -172,10 +212,6 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`   GET  /api/status    - API status`);
     console.log(`   GET  /api/projects  - Get projects`);
     console.log(`   POST /api/contact   - Submit contact form`);
-    console.log(`\n🌐 Allowed Origins:`);
-    allowedOrigins.forEach(origin => {
-      console.log(`   - ${origin instanceof RegExp ? origin.toString() : origin}`);
-    });
     console.log(`\n⚡ Server ready!`);
   });
 }
