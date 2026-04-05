@@ -12,7 +12,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5000',
   'https://portfolio-frontend-kktyi5evp-muhammad-usmans-projects-be41f176.vercel.app',
-  'https://usmaniaportfolio.netlify.app/,
+  'https://usmaniaportfolio.netlify.app/',
   process.env.CLIENT_URL,
   /\.vercel\.app$/ // Allow all Vercel preview deployments
 ].filter(Boolean);
